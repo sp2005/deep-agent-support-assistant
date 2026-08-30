@@ -1,0 +1,1 @@
+"""RAG knowledge agent placeholder."""
