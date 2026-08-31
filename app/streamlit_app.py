@@ -28,17 +28,144 @@ def _safe_dict(value: Any) -> dict[str, Any]:
     return {"summary": str(value)}
 
 
-def _render_json_block(title: str, content: Any, empty_message: str) -> None:
-    """Render a structured result block with a fallback empty state."""
+def _render_list(items: Any, empty_message: str = "No items were recorded.") -> None:
+    """Render a list of human-readable bullet points."""
 
-    st.subheader(title)
-    if content is None:
-        st.info(empty_message)
+    values = items if isinstance(items, list) else [items] if items else []
+    if not values:
+        st.caption(empty_message)
         return
-    if isinstance(content, (list, dict)) and not content:
-        st.info(empty_message)
+    for item in values:
+        st.markdown(f"- {item}")
+
+
+def _render_ticket_summary(summary: dict[str, Any]) -> None:
+    """Render ticket triage fields as readable metadata and key facts."""
+
+    st.subheader("Ticket Summary")
+    with st.container(border=True):
+        st.write(summary.get("summary", "No ticket summary was generated."))
+        metadata = st.columns(3)
+        metadata[0].metric("Priority", summary.get("priority", "Unknown"))
+        metadata[1].metric("Issue type", summary.get("issue_type", "Unknown"))
+        metadata[2].metric("Customer impact", summary.get("customer_impact", "Unknown"))
+        with st.expander("Key facts", expanded=True):
+            _render_list(summary.get("key_facts"), "No key facts were extracted.")
+
+
+def _render_log_analysis(log_analysis: Any) -> None:
+    """Render detected log signals without exposing the raw log payload."""
+
+    st.subheader("Log Analysis")
+    if not log_analysis:
+        st.info("No log analysis was produced.")
         return
-    st.json(content)
+    with st.container(border=True):
+        st.write(log_analysis.get("summary", "Log analysis completed."))
+        anomaly_col, evidence_col = st.columns(2)
+        with anomaly_col:
+            st.markdown("**Detected signals**")
+            _render_list(log_analysis.get("anomalies"), "No clear anomalies detected.")
+        with evidence_col:
+            st.markdown("**Supporting evidence**")
+            _render_list(log_analysis.get("evidence"), "No explicit evidence lines were recorded.")
+
+
+def _render_root_cause(root_cause: Any) -> None:
+    """Render the root-cause conclusion and evidence, excluding private reasoning text."""
+
+    st.subheader("Root Cause")
+    if not root_cause:
+        st.info("No root cause was determined.")
+        return
+    with st.container(border=True):
+        st.markdown(f"**{root_cause.get('primary_cause', 'Root cause not conclusively established.')}**")
+        confidence = float(root_cause.get("confidence", 0.0) or 0.0)
+        st.progress(max(0.0, min(confidence, 1.0)), text=f"Confidence: {confidence:.0%}")
+        with st.expander("Supporting evidence", expanded=True):
+            _render_list(root_cause.get("supporting_evidence"), "No supporting evidence was recorded.")
+
+
+def _render_recommendations(recommendations: Any) -> None:
+    """Render recommendation categories as action-oriented sections."""
+
+    st.subheader("Recommendations")
+    if not recommendations:
+        st.info("No recommendations were generated.")
+        return
+    labels = {
+        "recommended_actions": "Recommended actions",
+        "validation_steps": "Validation steps",
+        "escalation_guidance": "Escalation guidance",
+        "preventative_measures": "Preventative measures",
+    }
+    with st.container(border=True):
+        for key, label in labels.items():
+            with st.expander(label, expanded=key == "recommended_actions"):
+                _render_list(recommendations.get(key), "No items were recorded.")
+
+
+def _render_rca_report(report: Any) -> None:
+    """Render the final RCA as an executive summary, actions, and evidence."""
+
+    st.subheader("RCA Report")
+    if not report:
+        st.info("No RCA report was generated.")
+        return
+    with st.container(border=True):
+        st.markdown(f"### {report.get('title', 'Incident RCA Report')}")
+        st.badge(report.get("status", "In progress"), icon=":material/flag:")
+        st.write(report.get("summary", "No executive summary was generated."))
+        with st.expander("Root cause", expanded=True):
+            st.write(report.get("root_cause", "Root cause not conclusively established."))
+        with st.expander("Action plan", expanded=True):
+            _render_list(report.get("actions"), "No action items were recorded.")
+        with st.expander("Evidence"):
+            _render_list(report.get("evidence"), "No evidence was recorded.")
+
+
+def _render_agent_status(completed_steps: list[str], current_agent: str | None) -> None:
+    """Render progress badges for the workflow's observable agent stages."""
+
+    agent_labels = [
+        ("ticket_agent", "Ticket Analysis"),
+        ("log_agent", "Log Analysis"),
+        ("rag_agent", "RAG Knowledge"),
+        ("diagnosis_agent", "Root Cause"),
+        ("recommendation_agent", "Recommendation"),
+        ("report_agent", "RCA Report"),
+    ]
+    st.markdown("**Agent progress**")
+    badges = []
+    for agent_name, label in agent_labels:
+        if agent_name in completed_steps:
+            badges.append(f":green-badge[✓ {label}]")
+        elif agent_name == current_agent:
+            badges.append(f":orange-badge[● {label}]")
+        else:
+            badges.append(f":gray-badge[○ {label}]")
+    st.markdown(" ".join(badges))
+
+
+def _render_input_summary(ticket_value: str, app_logs: Any, nginx_logs: Any, mongodb_logs: Any) -> None:
+    """Render uploaded input metadata without displaying raw ticket or log contents."""
+
+    st.subheader("Incident inputs")
+    with st.container(border=True):
+        st.caption(f"Ticket loaded: {len(ticket_value):,} characters")
+        input_cols = st.columns(3)
+        for column, label, uploaded in [
+            (input_cols[0], "Application logs", app_logs),
+            (input_cols[1], "Nginx logs", nginx_logs),
+            (input_cols[2], "MongoDB logs", mongodb_logs),
+        ]:
+            with column:
+                if uploaded is not None:
+                    st.badge("Uploaded", icon=":material/check:", color="green")
+                    st.caption(uploaded.name)
+                else:
+                    st.badge("Not uploaded", icon=":material/remove:", color="gray")
+                st.caption(label)
 
 
 def _render_documents(documents: list[dict[str, Any]]) -> None:
@@ -46,16 +173,14 @@ def _render_documents(documents: list[dict[str, Any]]) -> None:
 
     st.subheader("Retrieved Knowledge")
     if not documents:
-        st.info("No relevant documents were returned for this ticket.")
+        st.info("No matching knowledge-base articles were found. The investigation continued using ticket and log evidence.")
         return
 
     for index, doc in enumerate(documents[:5], start=1):
         score = doc.get("score")
-        with st.container():
-            st.markdown(f"### {index}. {doc.get('title', 'Untitled document')}")
+        with st.expander(f"{index}. {doc.get('title', 'Untitled document')}", expanded=index == 1):
             st.caption(f"Source: {doc.get('source', 'Unknown')} | Relevance: {score if score is not None else 'n/a'}")
             st.write(doc.get("content", ""))
-            st.markdown("---")
 
 
 def _render_error_panel(errors: list[dict[str, Any]]) -> None:
@@ -76,21 +201,21 @@ def _render_error_panel(errors: list[dict[str, Any]]) -> None:
 def _render_execution_trace(trace: list[dict[str, Any]]) -> None:
     """Render a concise workflow trace without showing raw chain-of-thought content."""
 
-    st.subheader("Workflow Trace")
+    st.subheader("Workflow trace")
     if not trace:
         st.info("No workflow execution trace is available yet.")
         return
 
-    for entry in trace:
-        agent = entry.get("agent", "unknown_agent")
-        decision = entry.get("decision", "completed")
-        summary = entry.get("summary", "No observable summary was recorded.")
-        elapsed = entry.get("execution_time")
-        st.markdown(f"**{agent}** — {decision}")
-        st.write(summary)
-        if elapsed is not None:
-            st.caption(f"Elapsed: {float(elapsed):.3f}s")
-        st.markdown("---")
+    with st.expander(f"{len(trace)} observable agent steps", expanded=False):
+        lines = []
+        for entry in trace:
+            agent = entry.get("agent", "unknown_agent")
+            decision = entry.get("decision", "completed")
+            summary = entry.get("summary", "No observable summary was recorded.")
+            elapsed = entry.get("execution_time")
+            timing = f" ({float(elapsed):.3f}s)" if elapsed is not None else ""
+            lines.append(f"- **{agent}** · `{decision}`{timing}: {summary}")
+        st.markdown("\n".join(lines))
 
 
 def _run_workflow_with_progress(state: dict[str, Any]) -> tuple[dict[str, Any], bool]:
@@ -153,10 +278,19 @@ def _clear_demo_state() -> None:
 def main() -> None:
     """Render the support investigation interface."""
 
-    st.title("AI Support Investigation")
-    st.caption("Paste a ticket or upload supporting records, then run the troubleshooting workflow to investigate the incident.")
+    st.title("Deep Agent Support Assistant")
+    st.subheader("Multi-Agent AI for Production Incident Investigation and Root Cause Analysis")
+    st.write(
+        "Upload a support ticket and optional application logs. The LangGraph workflow coordinates multiple specialized AI agents to analyze the incident, retrieve relevant knowledge, determine the most likely root cause, and generate a structured RCA report for human review."
+    )
+    with st.container(horizontal=True, gap="small"):
+        st.badge("🤖 LangGraph", color="blue")
+        st.badge("📚 RAG", color="green")
+        st.badge("🔄 Multi-Agent", color="orange")
+        st.badge("🧠 OpenAI / Ollama", color="violet")
+        st.badge("👤 Human Review", color="gray")
     provider_name, model_name = get_model_configuration()
-    st.info(f"Configured model: **{provider_name} / {model_name}**")
+    st.caption(f"Active model: **{provider_name} / {model_name}**")
     input_reset_id = st.session_state.get("input_reset_id", 0)
 
     with st.sidebar:
@@ -214,13 +348,7 @@ def main() -> None:
         if mongodb_logs is not None:
             initial_state["mongodb_logs"] = mongodb_logs.read().decode("utf-8", errors="replace")
 
-        st.subheader("Incident Inputs")
-        st.json({
-            "ticket_preview": ticket_value[:400],
-            "app_logs_uploaded": app_logs is not None,
-            "nginx_logs_uploaded": nginx_logs is not None,
-            "mongodb_logs_uploaded": mongodb_logs is not None,
-        })
+        _render_input_summary(ticket_value, app_logs, nginx_logs, mongodb_logs)
 
         final_state, pending_review = _run_workflow_with_progress(initial_state)
         st.session_state["workflow_state"] = final_state
@@ -236,14 +364,16 @@ def main() -> None:
     current_agent = final_state.get("current_agent")
     execution_time = final_state.get("execution_time")
     reasoning_summary = final_state.get("reasoning_summary") or []
+    completed_steps = final_state.get("completed_steps") or []
 
-    if current_agent or execution_time is not None:
-        st.subheader("Execution Summary")
-        col1, col2 = st.columns(2)
-        with col1:
-            st.metric("Current agent", str(current_agent or "pending"))
-        with col2:
-            st.metric("Total execution time", f"{float(execution_time or 0.0):.3f}s")
+    st.subheader("Execution Summary")
+    with st.container(border=True):
+        summary_cols = st.columns(4)
+        summary_cols[0].metric("Total time", f"{float(execution_time or 0.0):.3f}s")
+        summary_cols[1].metric("Current agent", str(current_agent or "Pending"))
+        summary_cols[2].metric("Completed agents", str(len(completed_steps)))
+        summary_cols[3].metric("Model", f"{provider_name} / {model_name}")
+        _render_agent_status(completed_steps, current_agent)
 
     _render_execution_trace(reasoning_summary)
 
@@ -260,44 +390,44 @@ def main() -> None:
     st.markdown("---")
     col1, col2 = st.columns(2)
     with col1:
-        _render_json_block("Ticket Summary", ticket_summary, "No ticket summary was generated.")
+        _render_ticket_summary(ticket_summary)
     with col2:
-        _render_json_block("Root Cause", root_cause, "No root cause was determined.")
+        _render_root_cause(root_cause)
 
     _render_documents(retrieved_documents)
 
-    _render_json_block("Log Analysis", log_analysis, "No log analysis was produced.")
+    _render_log_analysis(log_analysis)
 
-    _render_json_block("Recommendations", recommendations, "No recommendations were generated.")
-    _render_json_block("RCA Report", rca_report, "No RCA report was generated.")
+    _render_recommendations(recommendations)
+    _render_rca_report(rca_report)
 
     if pending_review:
         st.markdown("---")
         st.subheader("Human Review")
-        st.info("Review the final RCA before it is finalized.")
+        st.info("Review the proposed RCA before final approval. You can approve it, request changes, or cancel the investigation.", icon=":material/rate_review:")
         review_reason = st.text_input("Review note", placeholder="Optional reason for approve, revise, or cancel")
         col1, col2, col3 = st.columns(3)
         with col1:
-            if st.button("Approve", width="stretch"):
+            if st.button("Approve Report", width="stretch", type="primary"):
                 _apply_review_action(final_state, "approve", review_reason or "Approved in the UI.")
                 st.session_state["workflow_state"] = final_state
                 st.session_state["pending_review"] = False
-                st.success("RCA approved and finalized.")
-                st.json(final_state.get("rca_report"))
+                st.success("RCA report approved and finalized.", icon=":material/check_circle:")
+                st.rerun()
         with col2:
-            if st.button("Revise", width="stretch"):
+            if st.button("Request Revision", width="stretch"):
                 _apply_review_action(final_state, "revise", review_reason or "Requested revision before finalization.")
                 st.session_state["workflow_state"] = final_state
                 st.session_state["pending_review"] = False
-                st.warning("RCA revision requested.")
-                st.json(final_state.get("rca_report"))
+                st.toast("RCA revision requested.")
+                st.rerun()
         with col3:
-            if st.button("Cancel", width="stretch"):
+            if st.button("Cancel Investigation", width="stretch"):
                 _apply_review_action(final_state, "cancel", review_reason or "Cancelled in the UI.")
                 st.session_state["workflow_state"] = final_state
                 st.session_state["pending_review"] = False
-                st.error("RCA workflow cancelled.")
-                st.json(final_state.get("rca_report"))
+                st.error("Investigation cancelled.", icon=":material/cancel:")
+                st.rerun()
 
 
 if __name__ == "__main__":
