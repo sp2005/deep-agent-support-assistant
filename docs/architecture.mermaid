@@ -1,0 +1,29 @@
+flowchart LR
+    UI[Streamlit UI] --> T[Ticket agent]
+    T --> L[Log agent]
+    L --> R[RAG agent]
+    R --> D[Root-cause agent]
+    D --> A[Recommendation agent]
+    A --> P[RCA report agent]
+    P --> H{Human review}
+    H -->|Approve| E[End]
+    H -->|Revise| E
+    H -->|Cancel| E
+
+    R -.-> C[(ChromaDB knowledge base)]
+
+    T -.-> M[LLM factory]
+    L -.-> M
+    D -.-> M
+    A -.-> M
+    P -.-> M
+    M --> O[OpenAI]
+    M --> Q[Ollama / local Llama]
+
+    S[SupportTroubleshootingState\nTypedDict] -. shared state .-> T
+    S -. shared state .-> L
+    S -. shared state .-> R
+    S -. shared state .-> D
+    S -. shared state .-> A
+    S -. shared state .-> P
+    S -. shared state .-> H

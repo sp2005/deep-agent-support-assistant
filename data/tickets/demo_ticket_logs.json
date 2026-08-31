@@ -1,0 +1,7 @@
+{
+  "ticket_id": "DEMO-LOGS-001",
+  "title": "Checkout is returning gateway errors",
+  "description": "Customers intermittently receive errors while checking out. Use the uploaded application logs to identify the observable error patterns and supporting evidence.",
+  "customer_impact": "Some checkout attempts fail",
+  "created_at": "2026-08-30T11:05:00Z"
+}

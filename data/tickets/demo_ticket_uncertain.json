@@ -1,0 +1,7 @@
+{
+  "ticket_id": "DEMO-DIAGNOSIS-001",
+  "title": "The service feels slower than usual",
+  "description": "A customer reports that some pages feel slow but provides no timestamps, request IDs, affected endpoint, error message, or supporting logs. Determine whether there is enough evidence to identify a root cause.",
+  "customer_impact": "Unclear",
+  "created_at": "2026-08-30T11:15:00Z"
+}

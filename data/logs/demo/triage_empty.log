@@ -1,0 +1,2 @@
+2026-08-30T11:00:10Z INFO account-api GET /health status=200 duration_ms=8
+2026-08-30T11:00:11Z INFO account-api POST /status status=200 duration_ms=12

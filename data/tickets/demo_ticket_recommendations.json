@@ -1,0 +1,7 @@
+{
+  "ticket_id": "DEMO-ACTIONS-001",
+  "title": "Database latency is affecting order creation",
+  "description": "Order creation is failing when database latency increases. Produce practical mitigation, validation, escalation, and preventative actions from the identified database problem.",
+  "customer_impact": "Order creation failures during latency spikes",
+  "created_at": "2026-08-30T11:20:00Z"
+}

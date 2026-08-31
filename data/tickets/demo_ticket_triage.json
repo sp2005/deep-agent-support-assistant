@@ -1,0 +1,7 @@
+{
+  "ticket_id": "DEMO-TRIAGE-001",
+  "title": "A small group of users cannot reset their password",
+  "description": "Users report that password-reset emails arrive slowly, but the account service remains available and no broad outage is reported. Please classify the issue, assess customer impact, and assign an appropriate priority.",
+  "customer_impact": "Limited to users requesting password resets",
+  "created_at": "2026-08-30T11:00:00Z"
+}

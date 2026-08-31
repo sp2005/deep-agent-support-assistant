@@ -1,0 +1,5 @@
+2026-08-30T10:14:55Z [conn12] command payments.orders query duration_ms=921
+2026-08-30T10:15:06Z [conn19] warning connection pool wait queue exceeded threshold wait_ms=803
+2026-08-30T10:15:07Z [conn21] error server selection timeout address=mongodb-primary:27017 timeout_ms=30000
+2026-08-30T10:15:08Z [conn22] error failed to connect to MongoDB address=mongodb-primary:27017
+2026-08-30T10:15:29Z [conn24] command payments.orders query duration_ms=1187

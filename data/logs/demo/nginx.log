@@ -1,0 +1,5 @@
+2026-08-30T10:15:07Z 10.0.0.21 POST /checkout 504 upstream timed out upstream_response_time=30.001
+2026-08-30T10:15:08Z 10.0.0.22 POST /checkout 504 upstream timed out upstream_response_time=30.002
+2026-08-30T10:15:13Z 10.0.0.23 GET /health 200 upstream_response_time=0.004
+2026-08-30T10:15:44Z 10.0.0.24 POST /checkout 502 upstream connection reset upstream_response_time=0.120
+2026-08-30T10:16:03Z 10.0.0.25 POST /checkout 504 upstream timed out upstream_response_time=30.000

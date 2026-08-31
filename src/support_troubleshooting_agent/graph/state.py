@@ -85,8 +85,15 @@ class SupportTroubleshootingState(TypedDict, total=False):
     root_cause: RootCause
     recommendations: list[Recommendation]
     rca_report: RCAReport
+    approval_decision: str
+    approval_reason: str
+    approval_status: str
     errors: list[GraphError]
     current_step: str
+    current_agent: str
+    completed_steps: list[str]
+    reasoning_summary: list[dict[str, Any]]
+    execution_time: float
 
 
 __all__ = [

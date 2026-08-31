@@ -1,0 +1,7 @@
+2026-08-30T10:14:02Z INFO  checkout-api release=2026.08.30.1 deployment_started
+2026-08-30T10:14:18Z INFO  checkout-api request_id=demo-1001 route=/checkout status=200 duration_ms=184
+2026-08-30T10:15:07Z ERROR checkout-api request_id=demo-1002 route=/checkout message="database query timed out" duration_ms=30000
+2026-08-30T10:15:08Z ERROR checkout-api request_id=demo-1003 route=/checkout exception=DatabaseTimeoutError message="deadline exceeded"
+2026-08-30T10:15:22Z WARN  checkout-api pool=payments-db active=50 idle=0 wait_ms=842
+2026-08-30T10:16:03Z ERROR checkout-api request_id=demo-1004 route=/checkout status=500 message="upstream dependency unavailable"
+2026-08-30T10:16:21Z INFO  checkout-api release=2026.08.30.1 deployment_completed

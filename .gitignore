@@ -1,0 +1,58 @@
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+
+# Virtual environments
+.venv/
+venv/
+env/
+
+# Environment variables
+.env
+.env.*
+!.env.example
+
+# VS Code
+.vscode/
+
+# macOS
+.DS_Store
+
+# Python packaging
+build/
+dist/
+*.egg-info/
+
+# Test & coverage
+.pytest_cache/
+.coverage
+htmlcov/
+
+# Logs
+*.log
+!data/logs/demo/
+!data/logs/demo/*.log
+
+# Jupyter
+.ipynb_checkpoints/
+
+# Streamlit cache
+.streamlit/secrets.toml
+
+# LangSmith (optional local cache)
+.langsmith/
+
+# Chroma vector database
+chroma_db/
+vector_db/
+data/vector_db/
+
+# Uploaded files (optional)
+uploads/
+
+# Temporary files
+tmp/
+temp/
+

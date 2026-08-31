@@ -1,0 +1,4 @@
+2026-08-30T11:05:10Z ERROR checkout-api route=/checkout status=500 exception=PaymentServiceUnavailable
+2026-08-30T11:05:11Z ERROR checkout-api route=/checkout status=504 message="upstream request timed out" duration_ms=30000
+2026-08-30T11:05:12Z WARN checkout-api route=/checkout retry_count=3
+2026-08-30T11:05:15Z INFO checkout-api route=/health status=200 duration_ms=5

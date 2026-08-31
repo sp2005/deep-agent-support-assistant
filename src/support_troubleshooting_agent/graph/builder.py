@@ -6,6 +6,8 @@ from importlib import import_module
 from typing import Any
 
 from langgraph.graph import END, StateGraph
+from langgraph.graph.state import CompiledStateGraph
+from langgraph.types import interrupt
 
 from .state import SupportTroubleshootingState
 
@@ -13,7 +15,14 @@ from .state import SupportTroubleshootingState
 def _set_step(state: SupportTroubleshootingState, step_name: str) -> dict[str, Any]:
     """Update the current workflow step without adding any domain logic yet."""
 
-    return {"current_step": step_name}
+    trace = {
+        "current_agent": step_name,
+        "current_step": step_name,
+        "completed_steps": list(state.get("completed_steps", []) or []) + ([step_name] if step_name not in state.get("completed_steps", []) else []),
+        "reasoning_summary": list(state.get("reasoning_summary", []) or []) + [{"agent": step_name, "decision": "advance", "summary": f"Advanced the workflow to {step_name}."}],
+        "execution_time": float(state.get("execution_time", 0.0) or 0.0),
+    }
+    return trace
 
 
 def _invoke_agent(module_name: str, function_name: str, state: SupportTroubleshootingState) -> dict[str, Any]:
@@ -76,8 +85,91 @@ def report_agent(state: SupportTroubleshootingState) -> dict[str, Any]:
     return _invoke_agent("rca_report", "report_agent", state)
 
 
-def build_workflow():
-    """Construct and compile the end-to-end troubleshooting graph."""
+def human_review_agent(state: SupportTroubleshootingState) -> dict[str, Any]:
+    """Pause before finalizing the RCA and require a human decision.
+
+    Supported actions are: approve, revise, cancel.
+    """
+
+    decision = state.get("approval_decision")
+    reason = state.get("approval_reason")
+    report = state.get("rca_report", {}) or {}
+
+    if decision:
+        normalized = str(decision).lower().strip()
+        if normalized == "approve":
+            report["status"] = "Approved"
+            return {
+                "approval_status": "approved",
+                "approval_decision": "approve",
+                "approval_reason": reason or "Approved by human reviewer.",
+                "rca_report": report,
+                "current_step": "human_review_agent",
+            }
+        if normalized == "revise":
+            report["status"] = "Revision requested"
+            return {
+                "approval_status": "revision_requested",
+                "approval_decision": "revise",
+                "approval_reason": reason or "Requested revision before finalization.",
+                "rca_report": report,
+                "current_step": "human_review_agent",
+            }
+        report["status"] = "Cancelled"
+        return {
+            "approval_status": "cancelled",
+            "approval_decision": "cancel",
+            "approval_reason": reason or "Cancelled by human reviewer.",
+            "rca_report": report,
+            "current_step": "human_review_agent",
+        }
+
+    review_payload = {
+        "type": "rca_review",
+        "message": "Review the generated RCA report before finalizing it.",
+        "allowed_actions": ["approve", "revise", "cancel"],
+        "report": report,
+    }
+    resume = interrupt(review_payload)
+
+    decision = str((resume or {}).get("decision", "cancel")).lower().strip()
+    reason = str((resume or {}).get("reason", "No reason provided.")).strip()
+
+    if decision == "approve":
+        report["status"] = "Approved"
+        return {
+            "approval_status": "approved",
+            "approval_decision": "approve",
+            "approval_reason": reason,
+            "rca_report": report,
+            "current_step": "human_review_agent",
+        }
+    if decision == "revise":
+        report["status"] = "Revision requested"
+        return {
+            "approval_status": "revision_requested",
+            "approval_decision": "revise",
+            "approval_reason": reason,
+            "rca_report": report,
+            "current_step": "human_review_agent",
+        }
+
+    report["status"] = "Cancelled"
+    return {
+        "approval_status": "cancelled",
+        "approval_decision": "cancel",
+        "approval_reason": reason,
+        "rca_report": report,
+        "current_step": "human_review_agent",
+    }
+
+
+def build_workflow() -> CompiledStateGraph:
+    """Construct and compile the ordered troubleshooting graph.
+
+    The compiled graph runs investigation agents in sequence and pauses at the
+    human review node before the final RCA is approved or cancelled.
+    """
 
     workflow = StateGraph(SupportTroubleshootingState)
 
@@ -87,6 +179,7 @@ def build_workflow():
     workflow.add_node("diagnosis_agent", diagnosis_agent)
     workflow.add_node("recommendation_agent", recommendation_agent)
     workflow.add_node("report_agent", report_agent)
+    workflow.add_node("human_review_agent", human_review_agent)
 
     workflow.set_entry_point("ticket_agent")
 
@@ -95,7 +188,8 @@ def build_workflow():
     workflow.add_edge("rag_agent", "diagnosis_agent")
     workflow.add_edge("diagnosis_agent", "recommendation_agent")
     workflow.add_edge("recommendation_agent", "report_agent")
-    workflow.add_edge("report_agent", END)
+    workflow.add_edge("report_agent", "human_review_agent")
+    workflow.add_edge("human_review_agent", END)
 
     return workflow.compile()
 
@@ -103,6 +197,7 @@ def build_workflow():
 __all__ = [
     "build_workflow",
     "diagnosis_agent",
+    "human_review_agent",
     "log_agent",
     "rag_agent",
     "recommendation_agent",

@@ -1,0 +1,4 @@
+2026-08-30T11:20:01Z WARN orders-api dependency=mongodb wait_ms=912
+2026-08-30T11:20:02Z ERROR orders-api route=/orders status=503 message="database unavailable"
+2026-08-30T11:20:04Z ERROR mongodb server_selection_timeout address=mongodb-primary:27017 timeout_ms=30000
+2026-08-30T11:20:08Z INFO orders-api route=/health status=200 duration_ms=7

@@ -1,0 +1,7 @@
+{
+  "ticket_id": "DEMO-RAG-001",
+  "title": "Search indexing stopped after a configuration update",
+  "description": "The search service stopped indexing new products after a configuration update. Find relevant operational guidance in the knowledge base and use it to ground the investigation.",
+  "customer_impact": "New products are missing from search results",
+  "created_at": "2026-08-30T11:10:00Z"
+}
