@@ -1,4 +1,6 @@
+-e .
 langgraph
 langchain-openai
 langchain-ollama
 streamlit
+chromadb

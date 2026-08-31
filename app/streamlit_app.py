@@ -11,7 +11,7 @@ from support_troubleshooting_agent.graph.builder import build_workflow, human_re
 from support_troubleshooting_agent.models.llm_factory import get_model_configuration
 
 
-st.set_page_config(page_title="AI Support Investigation", page_icon="🛠️", layout="wide")
+st.set_page_config(page_title="Deep Agent Support Assistant", page_icon="🛠️", layout="wide")
 
 
 def _safe_dict(value: Any) -> dict[str, Any]:
@@ -150,7 +150,7 @@ def _render_agent_status(completed_steps: list[str], current_agent: str | None) 
 def _render_input_summary(ticket_value: str, app_logs: Any, nginx_logs: Any, mongodb_logs: Any) -> None:
     """Render uploaded input metadata without displaying raw ticket or log contents."""
 
-    st.subheader("Incident inputs")
+    st.subheader("Incident Inputs")
     with st.container(border=True):
         st.caption(f"Ticket loaded: {len(ticket_value):,} characters")
         input_cols = st.columns(3)
@@ -184,7 +184,7 @@ def _render_documents(documents: list[dict[str, Any]]) -> None:
 
 
 def _render_error_panel(errors: list[dict[str, Any]]) -> None:
-    """Render collected workflow errors in a user-friendly panel."""
+    """Render workflow errors and non-blocking notices with appropriate severity."""
 
     if not errors:
         return
@@ -193,7 +193,11 @@ def _render_error_panel(errors: list[dict[str, Any]]) -> None:
     for error in errors:
         message = error.get("user_message") or error.get("message") or "An error occurred."
         details = error.get("details")
-        st.warning(message)
+        is_optional_notice = "No log" in message or "No relevant" in message or "without retrieval" in message
+        if is_optional_notice:
+            st.info(message, icon=":material/info:")
+        else:
+            st.warning(message, icon=":material/warning:")
         if details:
             st.caption(details)
 
@@ -201,7 +205,7 @@ def _render_error_panel(errors: list[dict[str, Any]]) -> None:
 def _render_execution_trace(trace: list[dict[str, Any]]) -> None:
     """Render a concise workflow trace without showing raw chain-of-thought content."""
 
-    st.subheader("Workflow trace")
+    st.subheader("Agent Execution Trace")
     if not trace:
         st.info("No workflow execution trace is available yet.")
         return
@@ -290,11 +294,12 @@ def main() -> None:
         st.badge("🧠 OpenAI / Ollama", color="violet")
         st.badge("👤 Human Review", color="gray")
     provider_name, model_name = get_model_configuration()
-    st.caption(f"Active model: **{provider_name} / {model_name}**")
+    provider_display = "GPT-4.1 (OpenAI)" if provider_name == "OpenAI" else "Llama 3.2 (Ollama)"
+    st.caption(f"Active model: **{provider_display}**")
     input_reset_id = st.session_state.get("input_reset_id", 0)
 
     with st.sidebar:
-        st.header("Inputs")
+        st.header("Incident Inputs")
         ticket_file = st.file_uploader(
             "Upload support ticket",
             type=["json", "txt", "md"],
@@ -323,7 +328,7 @@ def main() -> None:
                 type=["log", "txt", "csv"],
                 key=f"mongodb_logs_{input_reset_id}",
             )
-        investigate = st.button("Investigate", type="primary")
+        investigate = st.button("Start Investigation", type="primary")
         clear_results = st.button("Clear results / New demo")
 
     if clear_results:
@@ -354,7 +359,7 @@ def main() -> None:
         st.session_state["workflow_state"] = final_state
         st.session_state["pending_review"] = pending_review
     elif "workflow_state" not in st.session_state:
-        st.info("Provide a ticket and relevant logs, then click Investigate to begin the review.")
+        st.info("Provide a ticket and relevant logs, then select Start Investigation to begin the review.")
         return
 
     final_state = st.session_state["workflow_state"]
@@ -372,7 +377,7 @@ def main() -> None:
         summary_cols[0].metric("Total time", f"{float(execution_time or 0.0):.3f}s")
         summary_cols[1].metric("Current agent", str(current_agent or "Pending"))
         summary_cols[2].metric("Completed agents", str(len(completed_steps)))
-        summary_cols[3].metric("Model", f"{provider_name} / {model_name}")
+        summary_cols[3].metric("Model", provider_display)
         _render_agent_status(completed_steps, current_agent)
 
     _render_execution_trace(reasoning_summary)

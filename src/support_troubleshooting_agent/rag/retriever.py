@@ -11,7 +11,7 @@ except ImportError:  # pragma: no cover - dependency guard
     chromadb = None
 
 
-def _get_collection(collection_name: str = "support_knowledge"):
+def _get_collection(collection_name: str = "support_knowledge") -> Any:
     """Return the persisted Chroma collection for knowledge retrieval."""
 
     if chromadb is None:

@@ -59,17 +59,15 @@ Python 3.9 or newer is required.
 ```bash
 git clone <repository-url>
 cd deep-agent-support-assistant
-python3 -m venv .venv
+python -m venv .venv
 source .venv/bin/activate
 python -m pip install --upgrade pip
 python -m pip install -r requirements.txt
 cp .env.example .env
 ```
 
-Set `PYTHONPATH=src` when running the application or tests from the repository root:
-
 ```bash
-PYTHONPATH=src streamlit run app/streamlit_app.py
+streamlit run app/streamlit_app.py
 ```
 
 The app opens at `http://localhost:8501`.
@@ -106,7 +104,7 @@ OLLAMA_MODEL=llama3.2
 5. Start the app:
 
 ```bash
-PYTHONPATH=src streamlit run app/streamlit_app.py
+streamlit run app/streamlit_app.py
 ```
 
 The factory checks that the Ollama service is reachable before returning the local chat model. If both provider configurations are present, OpenAI is selected by design.
@@ -127,7 +125,7 @@ The repository includes synthetic, non-sensitive demo inputs:
 To run the demo:
 
 1. Complete the setup steps above and configure either OpenAI or Ollama.
-2. Start the app with `PYTHONPATH=src streamlit run app/streamlit_app.py`.
+2. Start the app with `streamlit run app/streamlit_app.py`.
 3. Upload `data/tickets/demo_ticket.json` in the **Support ticket** field.
 4. Upload the three files from `data/logs/demo/` in their matching log fields.
 5. Select **Investigate**.
@@ -166,13 +164,13 @@ Do not capture API keys, customer data, or sensitive log contents. Store approve
 Compile the workflow directly:
 
 ```bash
-PYTHONPATH=src python -c "from support_troubleshooting_agent.graph.builder import build_workflow; print(build_workflow().get_graph().nodes)"
+python -c "from support_troubleshooting_agent.graph.builder import build_workflow; print(build_workflow().get_graph().nodes)"
 ```
 
 Run unit tests when pytest is installed:
 
 ```bash
-PYTHONPATH=src python -m pytest -q
+python -m pytest -q
 ```
 
 Provider construction can be checked without making a model request by setting `OPENAI_API_KEY` for the OpenAI branch. Ollama validation requires a running daemon and a pulled model; the factory intentionally reports a clear error when those prerequisites are unavailable.
