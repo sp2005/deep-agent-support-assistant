@@ -33,24 +33,24 @@ All agents share -> SupportTroubleshootingState (TypedDict)
 flowchart LR
     UI[Streamlit UI] --> T[Ticket agent]
     T --> L[Log agent]
-    L --> P[Investigation planner]
-    P -->|Retrieval not needed| D[Root-cause agent]
-    P -->|Retrieval needed| R[RAG agent]
-    R --> E[Retrieval evaluator]
-    E -->|Sufficient| D
-    E -->|Insufficient, attempt 1| F[Refine query]
-    F --> R
-    E -->|Insufficient, attempt 2| D
-    D --> A[Recommendation agent]
-    A --> P[RCA report agent]
-    P --> H{Human review}
-    H -->|Approve / Revise / Cancel| E[End]
+    L --> PL[Investigation planner]
+    PL -->|Retrieval not needed| D[Root-cause agent]
+    PL -->|Retrieval needed| R[RAG agent]
+    R --> EV[Retrieval evaluator]
+    EV -->|Sufficient| D
+    EV -->|Insufficient, attempt 1| RF[Refine query]
+    RF --> R
+    EV -->|Insufficient, attempt 2| D
+    D --> RC[Recommendation agent]
+    RC --> RP[RCA report agent]
+    RP --> H{Human review}
+    H -->|Approve / Revise / Cancel| END[End]
     R -.-> C[(ChromaDB)]
     T -.-> M[LLM factory]
     L -.-> M
     D -.-> M
-    A -.-> M
-    P -.-> M
+    RC -.-> M
+    RP -.-> M
     M --> O[OpenAI]
     M --> Q[Ollama / local Llama]
 ```
@@ -176,7 +176,7 @@ That meant every investigation attempted a knowledge-base lookup, even when the 
 
 ### Current workflow
 
-The graph now adds an investigation planner after log analysis because the planner uses both the ticket summary and log evidence:
+The graph now adds an investigation planner immediately after ticket analysis. It uses the ticket, current state, and available logs to prepare the retrieval decision before log analysis completes:
 
 ```text
 Ticket -> Log -> Planner

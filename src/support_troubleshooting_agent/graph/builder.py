@@ -63,13 +63,19 @@ def log_agent(state: SupportTroubleshootingState) -> dict[str, Any]:
 
 
 def investigation_planner(state: SupportTroubleshootingState) -> dict[str, Any]:
-    """Decide whether the incident needs knowledge-base retrieval."""
+    """Plan investigation needs from the ticket, current state, and available logs."""
 
     ticket_summary = str(state.get("ticket_summary", "")).strip()
     log_analysis = state.get("log_analysis") or {}
+    available_logs = " ".join(
+        str(state.get(log_key, ""))
+        for log_key in ("application_logs", "nginx_logs", "mongodb_logs")
+        if state.get(log_key)
+    )
     evidence = " ".join(
         [
             ticket_summary,
+            available_logs,
             str(log_analysis.get("summary", "")) if isinstance(log_analysis, dict) else str(log_analysis),
             " ".join(str(item) for item in log_analysis.get("anomalies", [])) if isinstance(log_analysis, dict) else "",
             " ".join(str(item) for item in log_analysis.get("evidence", [])) if isinstance(log_analysis, dict) else "",
@@ -93,8 +99,16 @@ def investigation_planner(state: SupportTroubleshootingState) -> dict[str, Any]:
         "regression",
         "runbook",
     )
-    retrieval_needed = not evidence or any(signal in evidence for signal in retrieval_signals)
-    query = " ".join(part for part in [ticket_summary, str(log_analysis)] if part).strip()
+    sufficient_signals = (
+        "confirmed root cause",
+        "confirmed fix",
+        "known issue",
+        "resolved by",
+        "health check passed",
+    )
+    evidence_is_sufficient = any(signal in evidence for signal in sufficient_signals)
+    retrieval_needed = not evidence_is_sufficient and (not evidence or any(signal in evidence for signal in retrieval_signals))
+    query = " ".join(part for part in [ticket_summary, available_logs, str(log_analysis)] if part).strip()
     decision = "retrieve_knowledge" if retrieval_needed else "diagnose_from_available_evidence"
     summary = (
         "Planner determined KB lookup required because the incident contains unfamiliar or dependency-related signals."
@@ -176,7 +190,7 @@ def refine_retrieval_query(state: SupportTroubleshootingState) -> dict[str, Any]
     }
 
 
-def route_after_planner(state: SupportTroubleshootingState) -> str:
+def route_after_log(state: SupportTroubleshootingState) -> str:
     """Route to retrieval only when the planner requests knowledge lookup."""
 
     return "rag_agent" if state.get("retrieval_needed") else "diagnosis_agent"
@@ -311,11 +325,11 @@ def build_workflow() -> CompiledStateGraph:
 
     workflow.set_entry_point("ticket_agent")
 
-    workflow.add_edge("ticket_agent", "log_agent")
-    workflow.add_edge("log_agent", "investigation_planner")
+    workflow.add_edge("ticket_agent", "investigation_planner")
+    workflow.add_edge("investigation_planner", "log_agent")
     workflow.add_conditional_edges(
-        "investigation_planner",
-        route_after_planner,
+        "log_agent",
+        route_after_log,
         {"rag_agent": "rag_agent", "diagnosis_agent": "diagnosis_agent"},
     )
     workflow.add_edge("rag_agent", "retrieval_evaluator")
@@ -344,7 +358,7 @@ __all__ = [
     "recommendation_agent",
     "report_agent",
     "refine_retrieval_query",
-    "route_after_planner",
+    "route_after_log",
     "route_after_retrieval",
     "ticket_agent",
 ]
