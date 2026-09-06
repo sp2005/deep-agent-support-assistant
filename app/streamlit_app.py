@@ -5,7 +5,10 @@ from __future__ import annotations
 import json
 from typing import Any
 
+from dotenv import load_dotenv
 import streamlit as st
+
+load_dotenv()
 
 from support_troubleshooting_agent.graph.builder import build_workflow, human_review_agent
 from support_troubleshooting_agent.models.llm_factory import get_model_configuration
@@ -234,7 +237,10 @@ def _run_workflow_with_progress(state: dict[str, Any]) -> tuple[dict[str, Any], 
     steps = [
         "ticket_agent",
         "log_agent",
+        "investigation_planner",
         "rag_agent",
+        "retrieval_evaluator",
+        "retrieval_refiner",
         "diagnosis_agent",
         "recommendation_agent",
         "report_agent",

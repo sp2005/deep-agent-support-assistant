@@ -10,6 +10,7 @@ from langgraph.graph.state import CompiledStateGraph
 from langgraph.types import interrupt
 
 from .state import SupportTroubleshootingState
+from support_troubleshooting_agent.agents._resilience import add_execution_trace
 
 
 def _set_step(state: SupportTroubleshootingState, step_name: str) -> dict[str, Any]:
@@ -61,10 +62,134 @@ def log_agent(state: SupportTroubleshootingState) -> dict[str, Any]:
     return _invoke_agent("log_analysis", "log_agent", state)
 
 
+def investigation_planner(state: SupportTroubleshootingState) -> dict[str, Any]:
+    """Decide whether the incident needs knowledge-base retrieval."""
+
+    ticket_summary = str(state.get("ticket_summary", "")).strip()
+    log_analysis = state.get("log_analysis") or {}
+    evidence = " ".join(
+        [
+            ticket_summary,
+            str(log_analysis.get("summary", "")) if isinstance(log_analysis, dict) else str(log_analysis),
+            " ".join(str(item) for item in log_analysis.get("anomalies", [])) if isinstance(log_analysis, dict) else "",
+            " ".join(str(item) for item in log_analysis.get("evidence", [])) if isinstance(log_analysis, dict) else "",
+        ]
+    ).lower()
+    retrieval_signals = (
+        "unknown",
+        "unfamiliar",
+        "deployment",
+        "configuration",
+        "config",
+        "dependency",
+        "database",
+        "mongodb",
+        "timeout",
+        "504",
+        "503",
+        "502",
+        "index",
+        "search",
+        "regression",
+        "runbook",
+    )
+    retrieval_needed = not evidence or any(signal in evidence for signal in retrieval_signals)
+    query = " ".join(part for part in [ticket_summary, str(log_analysis)] if part).strip()
+    decision = "retrieve_knowledge" if retrieval_needed else "diagnose_from_available_evidence"
+    summary = (
+        "Planner determined KB lookup required because the incident contains unfamiliar or dependency-related signals."
+        if retrieval_needed
+        else "Planner determined KB lookup was not required because the available ticket and log evidence was sufficient."
+    )
+    trace = add_execution_trace(state, "investigation_planner", summary, decision=decision)
+    return {
+        "retrieval_needed": retrieval_needed,
+        "retrieval_query": query,
+        "retrieval_attempts": 0,
+        "retrieval_sufficient": not retrieval_needed,
+        "investigation_decision": decision,
+        "current_step": "investigation_planner",
+        **trace,
+    }
+
+
 def rag_agent(state: SupportTroubleshootingState) -> dict[str, Any]:
     """Node placeholder for retrieval and knowledge grounding."""
 
-    return _invoke_agent("rag_knowledge", "rag_agent", state)
+    result = _invoke_agent("rag_knowledge", "rag_agent", state)
+    return {
+        **result,
+        "retrieval_attempts": int(state.get("retrieval_attempts", 0) or 0) + 1,
+        "current_step": "rag_agent",
+    }
+
+
+def evaluate_retrieval(state: SupportTroubleshootingState) -> dict[str, Any]:
+    """Assess retrieval quality and decide whether to accept, retry, or skip it."""
+
+    documents = state.get("retrieved_documents") or []
+    scores = [float(document.get("score", 0.0) or 0.0) for document in documents if isinstance(document, dict)]
+    sufficient = bool(documents) and max(scores, default=0.0) >= 0.45
+    attempts = int(state.get("retrieval_attempts", 0) or 0)
+
+    if sufficient:
+        decision = "use_retrieved_knowledge"
+        summary = "Retrieval evaluator found relevant knowledge-base evidence and routed the investigation to diagnosis."
+    elif attempts < 2:
+        decision = "refine_retrieval_query"
+        summary = "Retrieval evaluator found insufficient evidence and routed the query for one refinement attempt."
+    else:
+        decision = "continue_without_kb_evidence"
+        summary = "Retrieval evaluator found insufficient evidence after two attempts and continued without KB evidence."
+
+    trace = add_execution_trace(state, "retrieval_evaluator", summary, decision=decision)
+    return {
+        "retrieved_documents": [] if decision == "continue_without_kb_evidence" else documents,
+        "retrieval_sufficient": sufficient,
+        "investigation_decision": decision,
+        "current_step": "retrieval_evaluator",
+        **trace,
+    }
+
+
+def refine_retrieval_query(state: SupportTroubleshootingState) -> dict[str, Any]:
+    """Refine the retrieval query before the single allowed retry."""
+
+    query = str(state.get("retrieval_query", "")).strip()
+    log_analysis = state.get("log_analysis") or {}
+    anomalies = log_analysis.get("anomalies", []) if isinstance(log_analysis, dict) else []
+    refinement = " troubleshooting root cause remediation runbook"
+    if anomalies:
+        refinement += " " + " ".join(str(item) for item in anomalies[:3])
+    refined_query = (query + refinement).strip()
+    trace = add_execution_trace(
+        state,
+        "retrieval_refiner",
+        "Refined the knowledge-base query with incident signals and routed it back to retrieval.",
+        decision="retry_retrieval",
+    )
+    return {
+        "retrieval_query": refined_query,
+        "investigation_decision": "retry_retrieval",
+        "current_step": "retrieval_refiner",
+        **trace,
+    }
+
+
+def route_after_planner(state: SupportTroubleshootingState) -> str:
+    """Route to retrieval only when the planner requests knowledge lookup."""
+
+    return "rag_agent" if state.get("retrieval_needed") else "diagnosis_agent"
+
+
+def route_after_retrieval(state: SupportTroubleshootingState) -> str:
+    """Route retrieval results to diagnosis, retry, or evidence-limited diagnosis."""
+
+    if state.get("retrieval_sufficient"):
+        return "diagnosis_agent"
+    if int(state.get("retrieval_attempts", 0) or 0) < 2:
+        return "retrieval_refiner"
+    return "diagnosis_agent"
 
 
 def diagnosis_agent(state: SupportTroubleshootingState) -> dict[str, Any]:
@@ -175,7 +300,10 @@ def build_workflow() -> CompiledStateGraph:
 
     workflow.add_node("ticket_agent", ticket_agent)
     workflow.add_node("log_agent", log_agent)
+    workflow.add_node("investigation_planner", investigation_planner)
     workflow.add_node("rag_agent", rag_agent)
+    workflow.add_node("retrieval_evaluator", evaluate_retrieval)
+    workflow.add_node("retrieval_refiner", refine_retrieval_query)
     workflow.add_node("diagnosis_agent", diagnosis_agent)
     workflow.add_node("recommendation_agent", recommendation_agent)
     workflow.add_node("report_agent", report_agent)
@@ -184,8 +312,19 @@ def build_workflow() -> CompiledStateGraph:
     workflow.set_entry_point("ticket_agent")
 
     workflow.add_edge("ticket_agent", "log_agent")
-    workflow.add_edge("log_agent", "rag_agent")
-    workflow.add_edge("rag_agent", "diagnosis_agent")
+    workflow.add_edge("log_agent", "investigation_planner")
+    workflow.add_conditional_edges(
+        "investigation_planner",
+        route_after_planner,
+        {"rag_agent": "rag_agent", "diagnosis_agent": "diagnosis_agent"},
+    )
+    workflow.add_edge("rag_agent", "retrieval_evaluator")
+    workflow.add_conditional_edges(
+        "retrieval_evaluator",
+        route_after_retrieval,
+        {"diagnosis_agent": "diagnosis_agent", "retrieval_refiner": "retrieval_refiner"},
+    )
+    workflow.add_edge("retrieval_refiner", "rag_agent")
     workflow.add_edge("diagnosis_agent", "recommendation_agent")
     workflow.add_edge("recommendation_agent", "report_agent")
     workflow.add_edge("report_agent", "human_review_agent")
@@ -197,10 +336,15 @@ def build_workflow() -> CompiledStateGraph:
 __all__ = [
     "build_workflow",
     "diagnosis_agent",
+    "evaluate_retrieval",
     "human_review_agent",
+    "investigation_planner",
     "log_agent",
     "rag_agent",
     "recommendation_agent",
     "report_agent",
+    "refine_retrieval_query",
+    "route_after_planner",
+    "route_after_retrieval",
     "ticket_agent",
 ]

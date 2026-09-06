@@ -2,5 +2,7 @@
 langgraph
 langchain-openai
 langchain-ollama
+langsmith
+python-dotenv
 streamlit
 chromadb

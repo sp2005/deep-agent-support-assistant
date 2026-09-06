@@ -94,6 +94,11 @@ class SupportTroubleshootingState(TypedDict, total=False):
     completed_steps: list[str]
     reasoning_summary: list[dict[str, Any]]
     execution_time: float
+    retrieval_needed: bool
+    retrieval_query: str
+    retrieval_attempts: int
+    retrieval_sufficient: bool
+    investigation_decision: str
 
 
 __all__ = [

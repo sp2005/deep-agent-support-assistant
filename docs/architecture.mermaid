@@ -1,8 +1,14 @@
 flowchart LR
     UI[Streamlit UI] --> T[Ticket agent]
     T --> L[Log agent]
-    L --> R[RAG agent]
-    R --> D[Root-cause agent]
+    L --> P[Investigation planner]
+    P -->|Retrieval not needed| D[Root-cause agent]
+    P -->|Retrieval needed| R[RAG agent]
+    R --> E[Retrieval evaluator]
+    E -->|Sufficient| D
+    E -->|Insufficient, attempt 1| F[Refine query]
+    F --> R
+    E -->|Insufficient, attempt 2| D
     D --> A[Recommendation agent]
     A --> P[RCA report agent]
     P --> H{Human review}

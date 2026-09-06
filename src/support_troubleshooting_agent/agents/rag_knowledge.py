@@ -39,6 +39,10 @@ def _normalize_log_analysis(log_analysis: Any) -> str:
 def _build_retrieval_query(state: dict[str, Any]) -> str:
     """Build a retrieval query from the ticket summary and log signals."""
 
+    existing_query = str(state.get("retrieval_query", "")).strip()
+    if existing_query:
+        return existing_query
+
     ticket_summary = str(state.get("ticket_summary", "")).strip()
     log_analysis = _normalize_log_analysis(state.get("log_analysis"))
 
