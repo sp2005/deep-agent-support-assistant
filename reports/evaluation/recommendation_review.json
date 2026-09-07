@@ -1,0 +1,84 @@
+{
+  "reviewer": "Codex direct review; not an independent human-panel sign-off",
+  "source": "recommendation_after.json",
+  "purpose": "Read-only review notes; not consumed by or applied to the evaluator.",
+  "cases": [
+    {
+      "id": "demo2-mongodb-timeout",
+      "automated_recommendation_pass": true,
+      "direct_review_recommendation": "pass",
+      "reason": "Conditional connectivity repair is paired with successful order creation and disappearance of database-selection timeouts.",
+      "recommendation_sha256": "0cca3da6eb8c5da20493e79f352110bb2fe3b8494d268d787f84559c45aa5fd5"
+    },
+    {
+      "id": "demo3-redis-timeout",
+      "automated_recommendation_pass": true,
+      "direct_review_recommendation": "pass",
+      "reason": "Restores Redis connectivity/performance with checks for reduced latency and no intermittent logouts; no invented capacity setting.",
+      "recommendation_sha256": "60f662d82c0ca38a773e98ff19e2a3fcad2ce24a0af19eb482887acf75bc5e40"
+    },
+    {
+      "id": "demo4-nginx-504",
+      "automated_recommendation_pass": false,
+      "direct_review_recommendation": "fail",
+      "reason": "The inverted 504 recovery predicate is rejected and replaced by a positive test. The plan still targets Nginx broadly instead of tracing the slow checkout upstream.",
+      "recommendation_sha256": "1f7b350e491d0293756fcbaec26f7bd1f53df7ca7fe0a53ce34582b4a1615ce8"
+    },
+    {
+      "id": "demo5-authentication",
+      "automated_recommendation_pass": false,
+      "direct_review_recommendation": "pass",
+      "reason": "Updates trusted certificate configuration after confirming mismatch, reloads authentication, and verifies login/token issuance. The automated rejection appears to be a false negative.",
+      "recommendation_sha256": "3ed3cd4763611b0486f741b96fc12503e2e108dd83bf56243bfef9b92617335c"
+    },
+    {
+      "id": "demo7-kafka-lag",
+      "automated_recommendation_pass": true,
+      "direct_review_recommendation": "pass",
+      "reason": "Repairs blocked processing or scales only with capacity evidence; preserves offsets and explicitly verifies lag drains without loss or duplicate processing.",
+      "recommendation_sha256": "163f0ab7644e14e0be6a5fa680519fb56cf74ffad96aeaa70d5f87ed733d1653"
+    },
+    {
+      "id": "demo8-disk-full",
+      "automated_recommendation_pass": false,
+      "direct_review_recommendation": "pass",
+      "reason": "Frees disk space safely or expands after capacity checks, preserves business data, and explicitly verifies application/logging writes. The automated rejection appears to be a false negative.",
+      "recommendation_sha256": "218173067a78831f918435adb6ecb0f79337ca661246dc27fb84351d2cd451e9"
+    },
+    {
+      "id": "demo10-dns-resolution",
+      "automated_recommendation_pass": true,
+      "direct_review_recommendation": "needs_review",
+      "reason": "Corrective DNS/network guidance is useful, but the test explicitly checks hostname resolution and retries rather than delivery of a notification. The automated pass may over-credit end-to-end coverage.",
+      "recommendation_sha256": "52619cf99d4e91094092c66e300117cf03b584dca42854e6b3d0aea1ab9fe4bc"
+    },
+    {
+      "id": "demo11-tls-expiry",
+      "automated_recommendation_pass": false,
+      "direct_review_recommendation": "fail",
+      "reason": "The selector chooses evidence gathering despite a supported certificate-expiration category; no renewal/deployment is returned.",
+      "recommendation_sha256": "abba22e3f7a383cf2c8a717843ef1493e31b4e3e363ed1e987390dfb8d6da8df"
+    },
+    {
+      "id": "demo16-no-logs",
+      "automated_recommendation_pass": false,
+      "direct_review_recommendation": "pass",
+      "reason": "Collects logs/performance data, timestamps, failing request IDs, affected endpoints and reproduction steps, while deferring production changes. This is appropriate evidence gathering; the scored regression appears to be a false negative.",
+      "recommendation_sha256": "abba22e3f7a383cf2c8a717843ef1493e31b4e3e363ed1e987390dfb8d6da8df"
+    },
+    {
+      "id": "demo27-ollama-unavailable",
+      "automated_recommendation_pass": true,
+      "direct_review_recommendation": "pass",
+      "reason": "Conditionally starts the configured service, checks readiness/dependencies and retries the model request.",
+      "recommendation_sha256": "d22b944dacd18d56c286e165611165d84b6999bf7b2920591f57ddd6f6837ae5"
+    },
+    {
+      "id": "demo28-missing-ticket",
+      "automated_recommendation_pass": false,
+      "direct_review_recommendation": "pass",
+      "reason": "Explicitly requests the original support ticket and affected operation. Recommendation rejection appears to be a false negative; the unchanged diagnosis still fails.",
+      "recommendation_sha256": "f1e6c2cbabfd9be0a9c8409f9e5afd3ee019e63d0446078ca9b0c8d10dcedcc5"
+    }
+  ]
+}

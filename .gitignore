@@ -45,6 +45,7 @@ htmlcov/
 .langsmith/
 
 # Chroma vector database
+data/evaluation/model_cache/
 chroma_db/
 vector_db/
 data/vector_db/
@@ -56,3 +57,4 @@ uploads/
 tmp/
 temp/
 
+data/evaluation/model_cache/

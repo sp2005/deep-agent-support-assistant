@@ -1,41 +1,28 @@
 # Deep Agent Support Assistant
 
+## Project Overview
+
+This project demonstrates how to build, evaluate, and iteratively improve a planner-driven multi-agent support investigation workflow using LangGraph and LangSmith.
+
 A state-driven support troubleshooting assistant built with LangGraph, LangChain, ChromaDB, and Streamlit. It analyzes a support ticket and optional application, Nginx, and MongoDB logs, retrieves relevant knowledge, produces a root-cause analysis, recommends actions, and pauses for human approval before finalizing the RCA.
+
+The final **Week 4** project combines planner-driven conditional retrieval, LangSmith tracing, a 30-case golden dataset, and a calibrated semantic evaluation framework. The measured baseline uses **Llama 3.2 through Ollama** for all workflow agents.
 
 ## Architecture
 
+![Planner-Driven LangGraph Workflow](docs/arch_diag_deep_agent_rag_v2.png)
+
 Standalone Mermaid source: [docs/architecture.mermaid](docs/architecture.mermaid)
 
-```text
-Streamlit UI
-    |
-    v
-Ticket agent -> Log agent -> Investigation planner
-                            |
-                   +----------+----------+
-                   |                     |
-               Skip RAG              Retrieve
-                   |                     v
-                   |             Retrieval evaluator
-                   |                     |
-                   |          Retry once or continue
-                   +----------> Root-cause agent
-                               |
-                               v
-Recommendation agent -> RCA report agent -> Human review -> End
-
-RAG agent ---------> ChromaDB knowledge base
-All model-backed agents -> LLM factory -> OpenAI or Ollama/local Llama
-All agents share -> SupportTroubleshootingState (TypedDict)
-```
+The Mermaid source follows.
 
 ```mermaid
 flowchart LR
     UI[Streamlit UI] --> T[Ticket agent]
-    T --> L[Log agent]
-    L --> PL[Investigation planner]
-    PL -->|Retrieval not needed| D[Root-cause agent]
-    PL -->|Retrieval needed| R[RAG agent]
+    T --> PL[Investigation planner]
+    PL --> L[Log agent]
+    L -->|Retrieval not needed| D[Root-cause agent]
+    L -->|Retrieval needed| R[RAG agent]
     R --> EV[Retrieval evaluator]
     EV -->|Sufficient| D
     EV -->|Insufficient, attempt 1| RF[Refine query]
@@ -52,7 +39,8 @@ flowchart LR
     RC -.-> M
     RP -.-> M
     M --> O[OpenAI]
-    M --> Q[Ollama / local Llama]
+    M --> Q[Ollama / Llama 3.2]
+    M -.-> LS[LangSmith model traces]
 ```
 
 Every node reads and writes the shared `SupportTroubleshootingState` TypedDict. The state includes structured outputs, errors, `current_agent`, `completed_steps`, observable `reasoning_summary` entries, and execution timing. The trace contains action summaries only; it never stores chain-of-thought or raw private model reasoning.
@@ -66,6 +54,11 @@ Every node reads and writes the shared `SupportTroubleshootingState` TypedDict. 
 - `src/support_troubleshooting_agent/rag/`: Existing ChromaDB ingestion, storage, and retrieval logic.
 - `data/knowledge_base/`: Knowledge-base source documents.
 - `data/vector_db/`: Local vector database data; ignored by git.
+- `src/support_troubleshooting_agent/evaluation/`: Runner, semantic judges, and calibration utilities.
+- `data/evaluation/`: Golden dataset and acceptance rubric; downloaded judge weights are ignored by git.
+- `reports/evaluation/`: Baselines, per-case results, failure reviews, and experiment comparisons.
+- `tests/unit/`: Agent, evaluator, and calibration tests.
+- `docs/`: Supporting architecture documentation.
 
 ## Setup
 
@@ -179,7 +172,7 @@ That meant every investigation attempted a knowledge-base lookup, even when the 
 The graph now adds an investigation planner immediately after ticket analysis. It uses the ticket, current state, and available logs to prepare the retrieval decision before log analysis completes:
 
 ```text
-Ticket -> Log -> Planner
+Ticket -> Planner -> Log
                           |
              +---------+---------+
              |                   |
@@ -195,7 +188,7 @@ The planner records `retrieval_needed`, `retrieval_query`, and an observable `in
 
 The application is agentic at the retrieval boundary because these LangGraph conditional edges select the next action from the current state:
 
-- `investigation_planner -> rag_agent` or `investigation_planner -> diagnosis_agent`
+- `log_agent -> rag_agent` or `log_agent -> diagnosis_agent`, using the planner decision
 - `retrieval_evaluator -> diagnosis_agent` or `retrieval_evaluator -> retrieval_refiner`
 - `retrieval_refiner -> rag_agent` for the bounded query retry
 
@@ -203,7 +196,7 @@ This preserves the existing retriever and downstream agents while making knowled
 
 ### Focused agent demos
 
-Each scenario below is designed to emphasize one agent. The workflow still runs every stage, but the listed stage should produce the most useful signal.
+Each scenario below is designed to emphasize one agent. The planner may skip retrieval; the listed stage should produce the most useful signal.
 
 | Focus | Ticket | Optional log | What to observe |
 | --- | --- | --- | --- |
@@ -226,7 +219,52 @@ Screenshots are not currently checked into this repository. To capture the runni
 
 Do not capture API keys, customer data, or sensitive log contents. Store approved images under `docs/screenshots/` and reference them here with Markdown image links.
 
+## Golden dataset
+
+[`data/evaluation/golden_dataset.json`](data/evaluation/golden_dataset.json) contains **30 synthetic cases** with stable IDs, ticket text, expected diagnosis and recommendation criteria, difficulty, and category. Scenarios cover dependency failures, deployment regressions, authentication, storage, missing/conflicting evidence, and provider-related symptoms. References describe acceptable meaning rather than required wording. The runner supplies ticket text only; runtime failures described in tickets are not injected faults.
+
 ## Validation
+
+### Evaluation framework
+
+The default evaluator checks explicit semantic acceptance criteria using a pinned local [NLI cross-encoder](https://huggingface.co/cross-encoder/nli-deberta-v3-small). It compares meaning, not exact answer strings. The default judge runs locally; workflow provider calls and optional LangSmith tracing follow their configured settings. Install the dependencies from `requirements.txt`, then download the approximately 173 MB model once:
+
+```bash
+python -m support_troubleshooting_agent.evaluation.entailment --download
+```
+
+The model is pinned to revision `80dd65bdcda723aee9ed855dc1c3082d8b3e6842`; weights are checksum-verified. Its cache is excluded from Git. `EVAL_NLI_CACHE` can override the cache directory.
+
+Run all 30 tickets through the unchanged LangGraph workflow, or regrade preserved answers without invoking agents:
+
+```bash
+python -m support_troubleshooting_agent.evaluation.runner --output reports/evaluation/new_run.json
+python -m support_troubleshooting_agent.evaluation.runner --regrade reports/evaluation/recommendation_after.json --output reports/evaluation/regraded.json
+```
+
+`data/evaluation/judge_rubric.json` contains reference-derived criteria, with alternative natural-language formulations for each. Every required criterion must pass; alternative formulations within a criterion are OR conditions. The NLI entailment-score cutoff is 0.8. The rubric contains no predicted answers or review verdicts and is checked against the dataset references before execution. Scores are model outputs, not calibrated probabilities of correctness. The full answer is evaluated; inputs exceeding the model's 512-token pair limit produce a visible evaluation error rather than silent truncation. Use `--dataset`, `--rubric`, and `--output` for other corpora.
+
+### Evaluation metrics
+
+Each case records the predicted diagnosis, recommendation, workflow latency, token usage, and pass/fail or error status. Code performs aggregation, output-presence checks, latency measurement, token accounting, and reference/provenance checks. The JSON records criterion scores and alternatives, model revision, cutoff, and rubric hash. `failed` counts semantic failures; `errors` separately counts workflow and evaluation errors, with `passed: null` for ungraded cases. `pass_rate` is passed / graded and `grading_coverage` is graded / total. Both diagnosis and recommendation must pass. Results checkpoint after each case. Runner exit code is 0 only if every case passes, 1 for failures/errors, and 2 for invalid input.
+
+Workflow chat token usage is reported separately from judge usage. The default NLI evaluator generates no chat tokens; its `grading.semantic_usage` records classification comparisons and input tokens, which are not LLM billing tokens. Workflow latency is preserved during regrading, and judge latency measures the new local evaluation. Token accounting excludes embeddings and hidden provider retries. The experimental `--judge-backend llm --judge-model MODEL` path retains structured outputs, source-quote validation, and bounded invalid-output retries, but it is not the trusted baseline evaluator.
+
+### Baseline and calibration
+
+Calibration uses frozen direct-review labels and prediction fingerprints in `reports/evaluation/manual_review.json`. Labels are compared only after grading and never enter the evaluator. Twelve representative cases were used for calibration; the other 18 were checked afterward without retuning the threshold:
+
+```bash
+python -m support_troubleshooting_agent.evaluation.calibration
+python -m support_troubleshooting_agent.evaluation.calibration --split validation --output reports/evaluation/judge_validation.json
+python -m support_troubleshooting_agent.evaluation.calibration --compare-only reports/evaluation/results.json --split all --output reports/evaluation/judge_audit.json
+```
+
+Calibration/audit exits 0 only when both dimensions match every reviewed label, so the known diagnosis-only mismatch on demo15 makes the validation/all audit exit 1 even though every overall case verdict agrees. The original pre-improvement baseline is **2/30 passes (6.7%)**, with **12/12 calibration** and **17/18 validation** cases agreeing on both dimensions, and **30/30 overall verdicts** agreeing with direct review. Manual review during evaluator calibration was not conducted by an independent human panel; criteria are benchmark-specific and the development sample is not an unbiased accuracy estimate. See [the full review and limitations](reports/evaluation/baseline_summary.md).
+
+The runner loads `.env` for workflow provider configuration and stops at normal human review without approving reports. Golden cases provide ticket text only; provider outages and malformed outputs described in a ticket are not injected runtime faults. Agents, workflow routing, and the golden tickets were not changed during evaluator calibration.
+
+### Local checks
 
 Compile the workflow directly:
 
@@ -242,9 +280,64 @@ python -m pytest -q
 
 Provider construction can be checked without making a model request by setting `OPENAI_API_KEY` for the OpenAI branch. Ollama validation requires a running daemon and a pulled model; the factory intentionally reports a clear error when those prerequisites are unavailable.
 
+## Evaluation Results
+
+The final Week 4 automated baseline uses Llama 3.2 and the calibrated local semantic judge. See [per-case results](reports/evaluation/recommendation_after.json).
+
+| Metric | Result |
+| --- | ---: |
+| Total cases | 30 |
+| Workflow completion | 30/30 |
+| Judge coverage | 30/30 |
+| Workflow errors | 0 |
+| Judge errors | 0 |
+| Diagnosis passed | 15/30 (50%) |
+| Recommendation passed | 5/30 (16.7%) |
+| Overall pass rate | 16.7% |
+
+Completion means the evaluation reached the normal human-review boundary, not that a report was approved. Both diagnosis and recommendation must pass for an overall pass. The remaining **25 failures are graded quality failures**, not runtime errors.
+
+### Lessons Learned
+
+LangSmith tracing, the golden dataset, and calibrated semantic evaluation revealed recommendation quality as the dominant improvement area, enabling targeted iteration while preserving a stable workflow.
+
+### Failure analysis
+
+Evaluation identified **recommendation generation as the primary remaining improvement area**: only five recommendations pass, compared with 15 diagnoses. The [experiment review](reports/evaluation/recommendation_comparison.md) highlights:
+
+- **Recommendation coverage:** 18 cases received evidence-gathering-only guidance, including some with enough evidence for a repair, such as certificate expiration.
+- **Component and diagnosis reasoning:** a symptom can be mistaken for the failing component; the Nginx 504 case needs investigation of the slow checkout upstream. Ambiguous and multiple-cause incidents remain difficult.
+- **Recovery validation:** checks sometimes verify component health without explicitly proving the affected customer operation succeeds.
+- **Evaluator limitations:** direct review flags likely false negatives for authentication, disk recovery, missing logs, and missing-ticket guidance, plus possible over-credit for DNS recovery. Automated grades remain unchanged.
+
+Retrieval quality and planner routing remain investigation targets, but these results do not isolate their causal contribution. No observed workflow or judge runtime errors explain the remaining failures.
+
+### Recommendation improvement experiment
+
+Only the Recommendation Agent was improved; the evaluator, judge rubric, LangSmith integration, planner, diagnosis, workflow, and underlying Llama 3.2 model were held unchanged. Generation selects evidence-supported conditional remediation patterns, grounds component names in source text, and produces recovery checks with reasons, verification, and rollback guidance. Uncertain or unsupported cases fall back to evidence gathering.
+
+| Measure | Before | Final |
+| --- | ---: | ---: |
+| Diagnosis passed | 15/30 (50%) | 15/30 (50%) |
+| Recommendation passed | 2/30 (6.7%) | 5/30 (16.7%) |
+| Overall pass rate | 6.7% | 16.7% |
+
+MongoDB timeout, Redis timeout, Kafka lag, and DNS resolution cases improved. The missing-logs case regressed in the automated score, although direct review considers its evidence-gathering response appropriate. The net gain is **10 percentage points**. A later expanded-format experiment was rolled back; it is not the retained implementation.
+
+See the [original baseline](reports/evaluation/recommendation_before.json), [comparison](reports/evaluation/recommendation_comparison.md), and [11-case direct review](reports/evaluation/recommendation_review.json).
+
+### Final evaluation summary
+
+The workflow completes reliably on all 30 benchmark cases, while recommendation quality remains the main constraint on measured pass rate. This is a measured automated baseline, not an error-free judgment of correctness: manual review during evaluator calibration was not conducted by an independent human panel, and the same development cases informed iteration. Independent review, unseen cases, and repeated runs are needed to assess generalization and stability.
+
 ## Suggested improvements
 
-These are intentionally not implemented in the current pass:
+Future work, not implemented in Week 4:
+
+- Expand evidence-grounded recommendation coverage and reduce unnecessary deferrals without inventing fixes.
+- Improve component selection and require verification of the original customer operation after remediation.
+- Independently review judge disagreements and validate improvements on held-out incidents and repeated runs.
+- Measure retrieval relevance and planner routing separately before changing their behavior.
 
 - Add a pinned lock file and CI matrix for supported Python versions and both providers.
 - Add integration tests using disposable provider fakes plus a live Ollama smoke-test job.

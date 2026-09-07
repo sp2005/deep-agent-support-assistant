@@ -6,3 +6,7 @@ langsmith
 python-dotenv
 streamlit
 chromadb
+onnxruntime
+tokenizers
+numpy
+huggingface-hub
