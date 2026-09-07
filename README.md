@@ -1,4 +1,4 @@
-# Deep Agent Support Assistant
+# AI Support Investigation Assistant
 
 ## Project Overview
 
