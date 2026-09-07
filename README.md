@@ -45,13 +45,23 @@ flowchart LR
 
 Every node reads and writes the shared `SupportTroubleshootingState` TypedDict. The state includes structured outputs, errors, `current_agent`, `completed_steps`, observable `reasoning_summary` entries, and execution timing. The trace contains action summaries only; it never stores chain-of-thought or raw private model reasoning.
 
-### LangSmith Trace Overview
+## Evaluation Results
 
-![LangSmith Trace Overview](docs/langsmith_trace_overview.png)
+| Metric | Result |
+| --- | ---: |
+| Total cases | 30 |
+| Workflow completion | 30/30 |
+| Judge coverage | 30/30 |
+| Workflow errors | 0 |
+| Judge errors | 0 |
+| Diagnosis passed | 15/30 (50%) |
+| Recommendation passed | 5/30 (16.7%) |
+| Overall pass rate | 16.7% |
 
-### LangSmith Trace Details
+![Final Evaluation Results](docs/evaluation_results.png)
 
-![LangSmith Trace Details](docs/langsmith_trace_details.png)
+Detailed per-case results are available in
+[reports/evaluation/recommendation_after.json](reports/evaluation/recommendation_after.json).
 
 ## Project layout
 
@@ -100,6 +110,14 @@ LANGSMITH_ENDPOINT=https://api.smith.langchain.com
 ```
 
 After starting the app and running an investigation, open the `support-agent-eval` project in LangSmith. A run should contain the LangGraph workflow and child runs for the model-backed agents. Do not commit `.env` or expose ticket, log, or API-key values in screenshots or traces. Use sanitized demo inputs when validating tracing.
+
+### LangSmith Trace Overview
+
+![LangSmith Trace Overview](docs/langsmith_trace_overview.png)
+
+### LangSmith Trace Details
+
+![LangSmith Trace Details](docs/langsmith_trace_details.png)
 
 ## OpenAI configuration
 
