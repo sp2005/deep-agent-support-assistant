@@ -45,6 +45,14 @@ flowchart LR
 
 Every node reads and writes the shared `SupportTroubleshootingState` TypedDict. The state includes structured outputs, errors, `current_agent`, `completed_steps`, observable `reasoning_summary` entries, and execution timing. The trace contains action summaries only; it never stores chain-of-thought or raw private model reasoning.
 
+### LangSmith Trace Overview
+
+![LangSmith Trace Overview](docs/langsmith_trace_overview.png)
+
+### LangSmith Trace Details
+
+![LangSmith Trace Details](docs/langsmith_trace_details.png)
+
 ## Project layout
 
 - `app/streamlit_app.py`: Streamlit entry point and workflow result display.
